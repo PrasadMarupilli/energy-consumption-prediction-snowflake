@@ -1,0 +1,1562 @@
+- ============================================================
+-- STEP 40: STORE MODEL EVALUATION RESULTS
+-- ============================================================
+
+CREATE OR REPLACE TABLE ENERGY_ML.ML_PIPE.MODEL_EVALUATION AS
+SELECT
+    'ENERGY_CONSUMPTION_XGB' AS MODEL_NAME,
+    'V2' AS MODEL_VERSION,
+    'XGBoost Regressor' AS MODEL_TYPE,
+    6872 AS TRAINING_ROWS,
+    1718 AS VALIDATION_ROWS,
+    0.4358 AS MAE,
+    0.6644 AS RMSE,
+    -0.0308 AS R2,
+    'Chronological 80/20 split' AS VALIDATION_METHOD,
+    CURRENT_TIMESTAMP() AS EVALUATION_TIME;
+
+
+-- ============================================================
+-- VERIFY MODEL EVALUATION
+-- ============================================================
+
+SELECT *
+FROM ENERGY_ML.ML_PIPE.MODEL_EVALUATION;
+
+-- ============================================================
+-- VERIFY MODEL EVALUATION
+-- ============================================================
+
+SELECT *
+FROM ENERGY_ML.ML_PIPE.MODEL_EVALUATION;SELECT
+    TIME,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    PRES,
+    COCO,
+    EL_PRICE,
+
+    MODEL(
+        ENERGY_ML.ML_PIPE.ENERGY_CONSUMPTION_XGB,
+        V2
+    )!predict(
+        EXTRACT(HOUR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+        EXTRACT(DAYOFWEEKISO FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+        EXTRACT(MONTH FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+        EXTRACT(DAYOFYEAR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+        CASE
+            WHEN EXTRACT(
+                DAYOFWEEKISO
+                FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)
+            ) IN (6, 7)
+            THEN 1
+            ELSE 0
+        END,
+        TEMP,
+        DWPT,
+        RHUM,
+        WDIR,
+        WSPD,
+        PRES,
+        COCO,
+        EL_PRICE
+    ) AS PREDICTION
+
+FROM ENERGY_ML.ML_PIPE.LANDING_ENERGY
+LIMIT 5;DESC TABLE ENERGY_ML.ML_PIPE.ENERGY_GOLD;CREATE OR REPLACE TABLE ENERGY_LAG_MODEL_DATA AS
+SELECT
+    F.TIME,
+    F.HOUR,
+    F.DAY_OF_WEEK,
+    F.MONTH,
+    F.DAY_OF_YEAR,
+    F.IS_WEEKEND,
+    F.TEMP,
+    F.DWPT,
+    F.RHUM,
+    F.WDIR,
+    F.WSPD,
+    F.WPGT,
+    F.PRES,
+    F.COCO,
+    F.EL_PRICE,
+    F.CONSUMPTION,
+
+    L.CONSUMPTION_LAG_1H,
+    L.CONSUMPTION_LAG_24H,
+    L.CONSUMPTION_LAG_7D,
+
+    CASE
+        WHEN ROW_NUMBER() OVER (ORDER BY F.TIME)
+             <= ROUND(COUNT(*) OVER () * 0.80)
+        THEN 'TRAIN'
+        ELSE 'VALIDATION'
+    END AS DATASET_TYPE
+
+FROM ENERGY_ML.ML_PIPE.ENERGY_FEATURES F
+INNER JOIN ENERGY_ML.ML_PIPE.ENERGY_LAG_FEATURES L
+    ON F.TIME = L.TIME
+
+WHERE
+    L.CONSUMPTION_LAG_1H IS NOT NULL
+    AND L.CONSUMPTION_LAG_24H IS NOT NULL
+    AND L.CONSUMPTION_LAG_7D IS NOT NULL;CREATE DATABASE ENERGY_ML;
+CREATE SCHEMA ENERGY_ML.ML_PIPE;
+CREATE WAREHOUSE ENERGY_ML_WH
+WITH
+    WAREHOUSE_SIZE = 'XSMALL'
+    AUTO_SUSPEND = 60
+    AUTO_RESUME = TRUE;
+USE DATABASE ENERGY_ML;
+USE SCHEMA ML_PIPE;
+USE WAREHOUSE ENERGY_ML_WH;
+CREATE OR REPLACE TABLE RAW_ENERGY (
+    TIME TIMESTAMP,
+    TEMP FLOAT,
+    DWPT FLOAT,
+    RHUM FLOAT,
+    PRCP FLOAT,
+    SNOW FLOAT,
+    WDIR FLOAT,
+    WSPD FLOAT,
+    WPGT FLOAT,
+    PRES FLOAT,
+    COCO FLOAT,
+    EL_PRICE FLOAT,
+    CONSUMPTION FLOAT
+);
+CREATE OR REPLACE TABLE TRAINING_DATA (
+    TIME TIMESTAMP,
+    TEMP FLOAT,
+    DWPT FLOAT,
+    RHUM FLOAT,
+    PRCP FLOAT,
+    SNOW FLOAT,
+    WDIR FLOAT,
+    WSPD FLOAT,
+    WPGT FLOAT,
+    PRES FLOAT,
+    COCO FLOAT,
+    EL_PRICE FLOAT,
+    CONSUMPTION FLOAT
+);
+CREATE OR REPLACE TABLE LANDING_ENERGY (
+    TIME TIMESTAMP,
+    TEMP FLOAT,
+    DWPT FLOAT,
+    RHUM FLOAT,
+    PRCP FLOAT,
+    SNOW FLOAT,
+    WDIR FLOAT,
+    WSPD FLOAT,
+    WPGT FLOAT,
+    PRES FLOAT,
+    COCO FLOAT,
+    EL_PRICE FLOAT,
+    CONSUMPTION FLOAT
+);
+SHOW TABLES IN SCHEMA ENERGY_ML.ML_PIPE;
+SHOW TABLES IN SCHEMA ENERGY_ML.ML_PIPE;
+USE DATABASE ENERGY_ML;
+USE SCHEMA ML_PIPE;
+
+USE DATABASE ENERGY_ML;
+USE SCHEMA ML_PIPE;
+
+CREATE OR REPLACE TABLE RAW_ENERGY (
+    TIME TIMESTAMP_TZ,
+    TEMP FLOAT,
+    DWPT FLOAT,
+    RHUM FLOAT,
+    PRCP FLOAT,
+    SNOW FLOAT,
+    WDIR FLOAT,
+    WSPD FLOAT,
+    WPGT FLOAT,
+    PRES FLOAT,
+    COCO FLOAT,
+    EL_PRICE FLOAT,
+    CONSUMPTION FLOAT
+);
+
+CREATE OR REPLACE TABLE TRAINING_DATA (
+    TIME TIMESTAMP_TZ,
+    TEMP FLOAT,
+    DWPT FLOAT,
+    RHUM FLOAT,
+    PRCP FLOAT,
+    SNOW FLOAT,
+    WDIR FLOAT,
+    WSPD FLOAT,
+    WPGT FLOAT,
+    PRES FLOAT,
+    COCO FLOAT,
+    EL_PRICE FLOAT,
+    CONSUMPTION FLOAT
+);
+
+CREATE OR REPLACE TABLE LANDING_ENERGY (
+    TIME TIMESTAMP_TZ,
+    TEMP FLOAT,
+    DWPT FLOAT,
+    RHUM FLOAT,
+    PRCP FLOAT,
+    SNOW FLOAT,
+    WDIR FLOAT,
+    WSPD FLOAT,
+    WPGT FLOAT,
+    PRES FLOAT,
+    COCO FLOAT,
+    EL_PRICE FLOAT,
+    CONSUMPTION FLOAT
+);
+USE DATABASE ENERGY_ML;
+USE SCHEMA ML_PIPE;
+
+SELECT COUNT(*) AS ROW_COUNT
+FROM RAW_ENERGY;
+USE DATABASE ENERGY_ML;
+USE SCHEMA ML_PIPE;
+
+CREATE OR REPLACE TABLE ENERGY_FEATURES (
+    TIME TIMESTAMP_TZ,
+    HOUR NUMBER,
+    DAY_OF_WEEK NUMBER,
+    MONTH NUMBER,
+    DAY_OF_YEAR NUMBER,
+    IS_WEEKEND NUMBER,
+    TEMP FLOAT,
+    DWPT FLOAT,
+    RHUM FLOAT,
+    WDIR FLOAT,
+    WSPD FLOAT,
+    WPGT FLOAT,
+    PRES FLOAT,
+    COCO FLOAT,
+    EL_PRICE FLOAT,
+    CONSUMPTION FLOAT
+);
+INSERT INTO ENERGY_FEATURES (
+    TIME,
+    HOUR,
+    DAY_OF_WEEK,
+    MONTH,
+    DAY_OF_YEAR,
+    IS_WEEKEND,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    WPGT,
+    PRES,
+    COCO,
+    EL_PRICE,
+    CONSUMPTION
+)
+SELECT
+    TIME,
+    EXTRACT(HOUR FROM TIME),
+    EXTRACT(DAYOFWEEK FROM TIME),
+    EXTRACT(MONTH FROM TIME),
+    EXTRACT(DAYOFYEAR FROM TIME),
+    CASE
+        WHEN EXTRACT(DAYOFWEEK FROM TIME) IN (1, 7) THEN 1
+        ELSE 0
+    END,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    WPGT,
+    PRES,
+    COCO,
+    EL_PRICE,
+    CONSUMPTION
+FROM RAW_ENERGY
+WHERE CONSUMPTION IS NOT NULL;
+SELECT COUNT(*) AS TOTAL_ROWS
+FROM ENERGY_FEATURES;
+SELECT *
+FROM ENERGY_FEATURES
+ORDER BY TIME
+LIMIT 10;
+USE DATABASE ENERGY_ML;
+USE SCHEMA ML_PIPE;
+
+TRUNCATE TABLE ENERGY_FEATURES;
+
+INSERT INTO ENERGY_FEATURES (
+    TIME,
+    HOUR,
+    DAY_OF_WEEK,
+    MONTH,
+    DAY_OF_YEAR,
+    IS_WEEKEND,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    WPGT,
+    PRES,
+    COCO,
+    EL_PRICE,
+    CONSUMPTION
+)
+SELECT
+    TIME,
+    EXTRACT(HOUR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+    EXTRACT(DAYOFWEEK FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+    EXTRACT(MONTH FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+    EXTRACT(DAYOFYEAR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+    CASE
+        WHEN EXTRACT(DAYOFWEEK FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)) IN (1, 7)
+        THEN 1
+        ELSE 0
+    END,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    WPGT,
+    PRES,
+    COCO,
+    EL_PRICE,
+    CONSUMPTION
+FROM RAW_ENERGY
+WHERE CONSUMPTION IS NOT NULL;
+SELECT
+    TIME,
+    HOUR,
+    DAY_OF_WEEK,
+    MONTH,
+    DAY_OF_YEAR,
+    IS_WEEKEND
+FROM ENERGY_FEATURES
+ORDER BY TIME
+LIMIT 5;
+USE DATABASE ENERGY_ML;
+USE SCHEMA ML_PIPE;
+
+TRUNCATE TABLE ENERGY_FEATURES;
+
+INSERT INTO ENERGY_FEATURES (
+    TIME,
+    HOUR,
+    DAY_OF_WEEK,
+    MONTH,
+    DAY_OF_YEAR,
+    IS_WEEKEND,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    WPGT,
+    PRES,
+    COCO,
+    EL_PRICE,
+    CONSUMPTION
+)
+SELECT
+    TIME,
+    EXTRACT(HOUR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+    EXTRACT(DAYOFWEEKISO FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+    EXTRACT(MONTH FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+    EXTRACT(DAYOFYEAR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+    CASE
+        WHEN EXTRACT(DAYOFWEEKISO FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)) IN (6, 7)
+        THEN 1
+        ELSE 0
+    END,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    WPGT,
+    PRES,
+    COCO,
+    EL_PRICE,
+    CONSUMPTION
+FROM RAW_ENERGY
+WHERE CONSUMPTION IS NOT NULL;
+SELECT
+    TIME,
+    HOUR,
+    DAY_OF_WEEK,
+    MONTH,
+    DAY_OF_YEAR,
+    IS_WEEKEND
+FROM ENERGY_FEATURES
+ORDER BY TIME
+LIMIT 5;
+USE DATABASE ENERGY_ML;
+USE SCHEMA ML_PIPE;
+
+CREATE OR REPLACE TABLE ENERGY_FEATURES AS
+SELECT
+    TIME,
+    EXTRACT(HOUR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)) AS HOUR,
+    EXTRACT(DAYOFWEEKISO FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)) AS DAY_OF_WEEK,
+    EXTRACT(MONTH FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)) AS MONTH,
+    EXTRACT(DAYOFYEAR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)) AS DAY_OF_YEAR,
+    CASE
+        WHEN EXTRACT(DAYOFWEEKISO FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)) IN (6, 7)
+        THEN 1
+        ELSE 0
+    END AS IS_WEEKEND,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    WPGT,
+    PRES,
+    COCO,
+    EL_PRICE,
+    CONSUMPTION
+FROM RAW_ENERGY
+WHERE CONSUMPTION IS NOT NULL;
+SELECT
+    COUNT(*) AS TOTAL_ROWS,
+    COUNT(DISTINCT TIME) AS UNIQUE_TIMES
+FROM ENERGY_FEATURES;
+SELECT
+    TIME,
+    COUNT(*) AS ROW_COUNT
+FROM ENERGY_FEATURES
+GROUP BY TIME
+HAVING COUNT(*) > 1
+ORDER BY TIME;
+SELECT
+    TIME,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    PRES,
+    COCO,
+    EL_PRICE,
+    CONSUMPTION
+FROM ENERGY_FEATURES
+WHERE TIME = '2021-11-07 01:00:00'
+ORDER BY CONSUMPTION;
+USE DATABASE ENERGY_ML;
+USE SCHEMA ML_PIPE;
+
+CREATE OR REPLACE TABLE ENERGY_FEATURES (
+    TIME TIMESTAMP_TZ,
+    HOUR NUMBER,
+    DAY_OF_WEEK NUMBER,
+    MONTH NUMBER,
+    DAY_OF_YEAR NUMBER,
+    IS_WEEKEND NUMBER,
+    TEMP FLOAT,
+    DWPT FLOAT,
+    RHUM FLOAT,
+    WDIR FLOAT,
+    WSPD FLOAT,
+    WPGT FLOAT,
+    PRES FLOAT,
+    COCO FLOAT,
+    EL_PRICE FLOAT,
+    CONSUMPTION FLOAT
+);
+
+INSERT INTO ENERGY_FEATURES
+SELECT
+    TIME,
+    EXTRACT(HOUR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+    EXTRACT(DAYOFWEEKISO FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+    EXTRACT(MONTH FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+    EXTRACT(DAYOFYEAR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+    CASE
+        WHEN EXTRACT(DAYOFWEEKISO FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)) IN (6,7)
+        THEN 1
+        ELSE 0
+    END,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    WPGT,
+    PRES,
+    COCO,
+    EL_PRICE,
+    CONSUMPTION
+FROM RAW_ENERGY
+WHERE CONSUMPTION IS NOT NULL;
+SELECT
+    COUNT(*) AS TOTAL_ROWS,
+    COUNT(DISTINCT TIME) AS UNIQUE_TIMES
+FROM ENERGY_FEATURES;
+
+
+CREATE OR REPLACE TABLE ENERGY_FEATURES AS
+SELECT
+    TIME,
+    EXTRACT(HOUR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)) AS HOUR,
+    EXTRACT(DAYOFWEEKISO FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)) AS DAY_OF_WEEK,
+    EXTRACT(MONTH FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)) AS MONTH,
+    EXTRACT(DAYOFYEAR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)) AS DAY_OF_YEAR,
+    CASE
+        WHEN EXTRACT(DAYOFWEEKISO FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)) IN (6, 7)
+        THEN 1
+        ELSE 0
+    END AS IS_WEEKEND,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    WPGT,
+    PRES,
+    COCO,
+    EL_PRICE,
+    CONSUMPTION
+FROM RAW_ENERGY
+WHERE CONSUMPTION IS NOT NULL;
+
+
+CREATE OR REPLACE TABLE ENERGY_MODEL_DATA AS
+SELECT
+    *,
+    CASE
+        WHEN ROW_NUMBER() OVER (ORDER BY TIME)
+             <= FLOOR(COUNT(*) OVER () * 0.80)
+        THEN 'TRAIN'
+        ELSE 'VALIDATION'
+    END AS DATASET_TYPE
+FROM ENERGY_FEATURES;
+
+SELECT
+    DATASET_TYPE,
+    COUNT(*) AS ROW_COUNT
+FROM ENERGY_MODEL_DATA
+GROUP BY DATASET_TYPE
+ORDER BY DATASET_TYPE;
+
+CREATE OR REPLACE TABLE ENERGY_MODEL_DATA AS
+SELECT
+    *,
+    CASE
+        WHEN ROW_NUMBER() OVER (ORDER BY TIME)
+             <= ROUND(COUNT(*) OVER () * 0.80)
+        THEN 'TRAIN'
+        ELSE 'VALIDATION'
+    END AS DATASET_TYPE
+FROM ENERGY_FEATURES;
+
+CREATE OR REPLACE TABLE ENERGY_LAG_FEATURES AS
+SELECT
+    TIME,
+    CONSUMPTION,
+
+    LAG(CONSUMPTION, 1) OVER (
+        ORDER BY TIME
+    ) AS CONSUMPTION_LAG_1H,
+
+    LAG(CONSUMPTION, 24) OVER (
+        ORDER BY TIME
+    ) AS CONSUMPTION_LAG_24H,
+
+    LAG(CONSUMPTION, 168) OVER (
+        ORDER BY TIME
+    ) AS CONSUMPTION_LAG_7D
+
+FROM ENERGY_ML.ML_PIPE.ENERGY_FEATURES
+ORDER BY TIME;
+
+
+SELECT
+    COUNT(*) AS TOTAL_ROWS,
+    COUNT(CONSUMPTION_LAG_1H) AS LAG_1H_AVAILABLE,
+    COUNT(CONSUMPTION_LAG_24H) AS LAG_24H_AVAILABLE,
+    COUNT(CONSUMPTION_LAG_7D) AS LAG_7D_AVAILABLE
+FROM ENERGY_ML.ML_PIPE.ENERGY_LAG_FEATURES;
+
+
+CREATE OR REPLACE TABLE ENERGY_LAG_MODEL_DATA AS
+SELECT
+    F.TIME,
+    F.HOUR,
+    F.DAY_OF_WEEK,
+    F.MONTH,
+    F.DAY_OF_YEAR,
+    F.IS_WEEKEND,
+    F.TEMP,
+    F.DWPT,
+    F.RHUM,
+    F.WDIR,
+    F.WSPD,
+    F.WPGT,
+    F.PRES,
+    F.COCO,
+    F.EL_PRICE,
+    F.CONSUMPTION,
+
+    L.CONSUMPTION_LAG_1H,
+    L.CONSUMPTION_LAG_24H,
+    L.CONSUMPTION_LAG_7D,
+
+    CASE
+        WHEN ROW_NUMBER() OVER (ORDER BY F.TIME)
+             <= ROUND(COUNT(*) OVER () * 0.80)
+        THEN 'TRAIN'
+        ELSE 'VALIDATION'
+    END AS DATASET_TYPE
+
+FROM ENERGY_ML.ML_PIPE.ENERGY_FEATURES F
+INNER JOIN ENERGY_ML.ML_PIPE.ENERGY_LAG_FEATURES L
+    ON F.TIME = L.TIME
+
+WHERE
+    L.CONSUMPTION_LAG_1H IS NOT NULL
+    AND L.CONSUMPTION_LAG_24H IS NOT NULL
+    AND L.CONSUMPTION_LAG_7D IS NOT NULL;
+
+
+    SELECT
+    COUNT(*) AS TOTAL_ROWS,
+    COUNT(CONSUMPTION_LAG_1H) AS LAG_1H,
+    COUNT(CONSUMPTION_LAG_24H) AS LAG_24H,
+    COUNT(CONSUMPTION_LAG_7D) AS LAG_7D,
+    SUM(CASE WHEN DATASET_TYPE = 'TRAIN' THEN 1 ELSE 0 END) AS TRAIN_ROWS,
+    SUM(CASE WHEN DATASET_TYPE = 'VALIDATION' THEN 1 ELSE 0 END) AS VALIDATION_ROWS
+FROM ENERGY_ML.ML_PIPE.ENERGY_LAG_MODEL_DATA;
+
+DESC TABLE ENERGY_ML.ML_PIPE.LANDING_ENERGY;
+
+-- ============================================================
+-- STEP 33 - CREATE STREAM ON LANDING TABLE
+-- ============================================================
+
+CREATE OR REPLACE STREAM ENERGY_LANDING_STREAM
+ON TABLE ENERGY_ML.ML_PIPE.LANDING_ENERGY
+APPEND_ONLY = TRUE;
+
+SHOW STREAMS IN SCHEMA ENERGY_ML.ML_PIPE;
+
+
+-- ============================================================
+-- STEP 34 - CREATE GOLD PREDICTION TABLE
+-- ============================================================
+
+CREATE OR REPLACE TABLE ENERGY_GOLD (
+    TIME TIMESTAMP_TZ,
+    TEMP FLOAT,
+    DWPT FLOAT,
+    RHUM FLOAT,
+    PRCP FLOAT,
+    SNOW FLOAT,
+    WDIR FLOAT,
+    WSPD FLOAT,
+    WPGT FLOAT,
+    PRES FLOAT,
+    COCO FLOAT,
+    EL_PRICE FLOAT,
+    PREDICTED_CONSUMPTION FLOAT,
+    MODEL_NAME VARCHAR,
+    MODEL_VERSION VARCHAR,
+    PREDICTION_TIME TIMESTAMP_TZ
+);
+
+
+DESC TABLE ENERGY_ML.ML_PIPE.ENERGY_GOLD;
+
+
+SELECT
+    TIME,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    PRES,
+    COCO,
+    EL_PRICE,
+
+    MODEL(
+        ENERGY_ML.ML_PIPE.ENERGY_CONSUMPTION_XGB,
+        V2
+    )!predict(
+        EXTRACT(HOUR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+        EXTRACT(DAYOFWEEKISO FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+        EXTRACT(MONTH FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+        EXTRACT(DAYOFYEAR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+        CASE
+            WHEN EXTRACT(
+                DAYOFWEEKISO
+                FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)
+            ) IN (6, 7)
+            THEN 1
+            ELSE 0
+        END,
+        TEMP,
+        DWPT,
+        RHUM,
+        WDIR,
+        WSPD,
+        PRES,
+        COCO,
+        EL_PRICE
+    ) AS PREDICTION
+
+FROM ENERGY_ML.ML_PIPE.LANDING_ENERGY
+LIMIT 5;
+
+
+INSERT INTO ENERGY_ML.ML_PIPE.LANDING_ENERGY
+SELECT *
+FROM ENERGY_ML.ML_PIPE.RAW_ENERGY
+LIMIT 5;
+
+
+SELECT
+    (SELECT COUNT(*) FROM ENERGY_ML.ML_PIPE.RAW_ENERGY) AS RAW_ROWS,
+    (SELECT COUNT(*) FROM ENERGY_ML.ML_PIPE.LANDING_ENERGY) AS LANDING_ROWS;
+
+
+    SELECT COUNT(*) AS RAW_ROWS
+FROM ENERGY_ML.ML_PIPE.RAW_ENERGY;
+
+-- Step 35G: Load test records into the Landing table
+
+INSERT INTO ENERGY_ML.ML_PIPE.LANDING_ENERGY
+SELECT *
+FROM ENERGY_ML.ML_PIPE.RAW_ENERGY
+LIMIT 5;
+
+-- Verify that the records arrived
+SELECT
+    COUNT(*) AS LANDING_ROWS
+FROM ENERGY_ML.ML_PIPE.LANDING_ENERGY;
+
+-- Display the test records
+SELECT *
+FROM ENERGY_ML.ML_PIPE.LANDING_ENERGY
+LIMIT 5;
+
+
+-- Test the registered XGBoost model on incoming records
+
+SELECT
+    TIME,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    PRES,
+    COCO,
+    EL_PRICE,
+
+    MODEL(
+        ENERGY_ML.ML_PIPE.ENERGY_CONSUMPTION_XGB,
+        V2
+    )!predict(
+        EXTRACT(HOUR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+        EXTRACT(DAYOFWEEKISO FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+        EXTRACT(MONTH FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+        EXTRACT(DAYOFYEAR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+        CASE
+            WHEN EXTRACT(
+                DAYOFWEEKISO
+                FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)
+            ) IN (6, 7)
+            THEN 1
+            ELSE 0
+        END,
+        TEMP,
+        DWPT,
+        RHUM,
+        WDIR,
+        WSPD,
+        PRES,
+        COCO,
+        EL_PRICE
+    ) AS PREDICTION
+
+FROM ENERGY_ML.ML_PIPE.LANDING_ENERGY
+LIMIT 5;
+
+
+SELECT
+    TIME,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    PRES,
+    COCO,
+    EL_PRICE,
+
+    (
+        MODEL(
+            ENERGY_ML.ML_PIPE.ENERGY_CONSUMPTION_XGB,
+            V2
+        )!predict(
+            EXTRACT(HOUR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+            EXTRACT(DAYOFWEEKISO FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+            EXTRACT(MONTH FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+            EXTRACT(DAYOFYEAR FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)),
+            CASE
+                WHEN EXTRACT(
+                    DAYOFWEEKISO
+                    FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)
+                ) IN (6, 7)
+                THEN 1
+                ELSE 0
+            END,
+            TEMP,
+            DWPT,
+            RHUM,
+            WDIR,
+            WSPD,
+            PRES,
+            COCO,
+            EL_PRICE
+        )
+    ):"output_feature_0"::FLOAT AS PREDICTION
+
+FROM ENERGY_ML.ML_PIPE.LANDING_ENERGY
+LIMIT 5;
+
+
+-- ============================================================
+-- STEP 36: CREATE ENERGY INFERENCE STORED PROCEDURE
+-- ============================================================
+
+CREATE OR REPLACE PROCEDURE ENERGY_ML.ML_PIPE.RUN_ENERGY_INFERENCE()
+RETURNS VARCHAR
+LANGUAGE SQL
+EXECUTE AS OWNER
+AS
+$$
+BEGIN
+
+    -- Check whether the Stream contains new records
+    IF (SYSTEM$STREAM_HAS_DATA(
+        'ENERGY_ML.ML_PIPE.ENERGY_LANDING_STREAM'
+    )) THEN
+
+        -- Run predictions and store them in the Gold table
+        INSERT INTO ENERGY_ML.ML_PIPE.ENERGY_GOLD
+        (
+            TIME,
+            TEMP,
+            DWPT,
+            RHUM,
+            PRCP,
+            SNOW,
+            WDIR,
+            WSPD,
+            WPGT,
+            PRES,
+            COCO,
+            EL_PRICE,
+            PREDICTED_CONSUMPTION,
+            MODEL_NAME,
+            MODEL_VERSION,
+            PREDICTION_TIME
+        )
+
+        SELECT
+            TIME,
+            TEMP,
+            DWPT,
+            RHUM,
+            PRCP,
+            SNOW,
+            WDIR,
+            WSPD,
+            WPGT,
+            PRES,
+            COCO,
+            EL_PRICE,
+
+            (
+                MODEL(
+                    ENERGY_ML.ML_PIPE.ENERGY_CONSUMPTION_XGB,
+                    V2
+                )!predict(
+                    EXTRACT(
+                        HOUR
+                        FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)
+                    ),
+
+                    EXTRACT(
+                        DAYOFWEEKISO
+                        FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)
+                    ),
+
+                    EXTRACT(
+                        MONTH
+                        FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)
+                    ),
+
+                    EXTRACT(
+                        DAYOFYEAR
+                        FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)
+                    ),
+
+                    CASE
+                        WHEN EXTRACT(
+                            DAYOFWEEKISO
+                            FROM CONVERT_TIMEZONE('Europe/Tallinn', TIME)
+                        ) IN (6, 7)
+                        THEN 1
+                        ELSE 0
+                    END,
+
+                    TEMP,
+                    DWPT,
+                    RHUM,
+                    WDIR,
+                    WSPD,
+                    PRES,
+                    COCO,
+                    EL_PRICE
+                )
+            ):"output_feature_0"::FLOAT
+
+            AS PREDICTED_CONSUMPTION,
+
+            'ENERGY_CONSUMPTION_XGB' AS MODEL_NAME,
+            'V2' AS MODEL_VERSION,
+            CURRENT_TIMESTAMP() AS PREDICTION_TIME
+
+        FROM ENERGY_ML.ML_PIPE.ENERGY_LANDING_STREAM
+
+        WHERE METADATA$ACTION = 'INSERT';
+
+        RETURN 'Energy inference completed successfully.';
+
+    ELSE
+
+        RETURN 'No new data available in the landing stream.';
+
+    END IF;
+
+END;
+$$;
+
+
+-- ============================================================
+-- VERIFY THE PROCEDURE
+-- ============================================================
+
+SHOW PROCEDURES
+LIKE 'RUN_ENERGY_INFERENCE'
+IN SCHEMA ENERGY_ML.ML_PIPE;
+
+
+-- ============================================================
+-- STEP 36A: TEST THE INFERENCE PROCEDURE
+-- ============================================================
+
+CALL ENERGY_ML.ML_PIPE.RUN_ENERGY_INFERENCE();
+
+
+-- ============================================================
+-- VERIFY THE GOLD TABLE
+-- ============================================================
+
+SELECT
+    TIME,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    PRES,
+    COCO,
+    EL_PRICE,
+    PREDICTED_CONSUMPTION,
+    MODEL_NAME,
+    MODEL_VERSION,
+    PREDICTION_TIME
+FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD
+ORDER BY PREDICTION_TIME DESC
+LIMIT 5;
+
+
+-- ============================================================
+-- STEP 37: CREATE AUTOMATIC INFERENCE TASK
+-- ============================================================
+
+CREATE OR REPLACE TASK ENERGY_ML.ML_PIPE.ENERGY_INFERENCE_TASK
+    WAREHOUSE = ENERGY_ML_WH
+    SCHEDULE = '1 MINUTE'
+    WHEN SYSTEM$STREAM_HAS_DATA(
+        'ENERGY_ML.ML_PIPE.ENERGY_LANDING_STREAM'
+    )
+AS
+    CALL ENERGY_ML.ML_PIPE.RUN_ENERGY_INFERENCE();
+
+
+-- ============================================================
+-- START THE TASK
+-- ============================================================
+
+ALTER TASK ENERGY_ML.ML_PIPE.ENERGY_INFERENCE_TASK RESUME;
+
+
+-- ============================================================
+-- VERIFY TASK STATUS
+-- ============================================================
+
+SHOW TASKS
+IN SCHEMA ENERGY_ML.ML_PIPE;
+
+
+-- ============================================================
+-- STEP 37A: VERIFY TASK STATUS
+-- ============================================================
+
+SHOW TASKS
+LIKE 'ENERGY_INFERENCE_TASK'
+IN SCHEMA ENERGY_ML.ML_PIPE;
+
+-- ============================================================
+-- 1. CHECK TASK STATE
+-- ============================================================
+
+SHOW TASKS
+LIKE 'ENERGY_INFERENCE_TASK'
+IN SCHEMA ENERGY_ML.ML_PIPE;
+
+SELECT
+    "name" AS TASK_NAME,
+    "state" AS TASK_STATE,
+    "schedule" AS SCHEDULE,
+    "warehouse" AS WAREHOUSE
+FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()));
+
+
+-- ============================================================
+-- 2. ADD 5 NEW INCOMING RECORDS
+-- ============================================================
+
+INSERT INTO ENERGY_ML.ML_PIPE.LANDING_ENERGY
+SELECT *
+FROM ENERGY_ML.ML_PIPE.RAW_ENERGY
+LIMIT 5 OFFSET 5;
+
+
+-- ============================================================
+-- 3. CHECK THAT THE STREAM DETECTS NEW DATA
+-- ============================================================
+
+SELECT SYSTEM$STREAM_HAS_DATA(
+    'ENERGY_ML.ML_PIPE.ENERGY_LANDING_STREAM'
+) AS STREAM_HAS_NEW_DATA;
+
+
+-- ============================================================
+-- STEP 37C: VERIFY AUTOMATIC INFERENCE
+-- ============================================================
+
+-- Check how many predictions are currently in Gold
+SELECT
+    COUNT(*) AS GOLD_ROWS
+FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD;
+
+
+-- Show the latest predictions
+SELECT
+    TIME,
+    PREDICTED_CONSUMPTION,
+    MODEL_NAME,
+    MODEL_VERSION,
+    PREDICTION_TIME
+FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD
+ORDER BY PREDICTION_TIME DESC
+LIMIT 10;
+
+
+-- Check the most recent Task execution
+SELECT
+    NAME,
+    STATE,
+    SCHEDULED_TIME,
+    COMPLETED_TIME,
+    ERROR_CODE,
+    ERROR_MESSAGE
+FROM TABLE(
+    INFORMATION_SCHEMA.TASK_HISTORY(
+        TASK_NAME => 'ENERGY_INFERENCE_TASK',
+        RESULT_LIMIT => 5
+    )
+)
+ORDER BY SCHEDULED_TIME DESC;
+
+
+-- ============================================================
+-- STEP 37D: VERIFY AUTOMATIC TASK COMPLETION
+-- ============================================================
+
+-- 1. Check the latest Task executions
+SELECT
+    NAME,
+    STATE,
+    SCHEDULED_TIME,
+    COMPLETED_TIME,
+    ERROR_CODE,
+    ERROR_MESSAGE
+FROM TABLE(
+    INFORMATION_SCHEMA.TASK_HISTORY(
+        TASK_NAME => 'ENERGY_INFERENCE_TASK',
+        RESULT_LIMIT => 5
+    )
+)
+ORDER BY SCHEDULED_TIME DESC;
+
+
+-- 2. Check the latest Gold predictions
+SELECT
+    TIME,
+    PREDICTED_CONSUMPTION,
+    MODEL_NAME,
+    MODEL_VERSION,
+    PREDICTION_TIME
+FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD
+ORDER BY PREDICTION_TIME DESC
+LIMIT 10;
+
+
+-- 3. Count all predictions in Gold
+SELECT
+    COUNT(*) AS GOLD_ROWS
+FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD;
+
+
+-- ============================================================
+-- STEP 38: FINAL AUTOMATION VERIFICATION
+-- ============================================================
+
+-- 1. Check latest Task executions
+SELECT
+    NAME,
+    STATE,
+    SCHEDULED_TIME,
+    COMPLETED_TIME,
+    ERROR_CODE,
+    ERROR_MESSAGE
+FROM TABLE(
+    INFORMATION_SCHEMA.TASK_HISTORY(
+        TASK_NAME => 'ENERGY_INFERENCE_TASK',
+        RESULT_LIMIT => 5
+    )
+)
+ORDER BY SCHEDULED_TIME DESC;
+
+
+-- 2. Check the latest predictions
+SELECT
+    TIME,
+    PREDICTED_CONSUMPTION,
+    MODEL_NAME,
+    MODEL_VERSION,
+    PREDICTION_TIME
+FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD
+ORDER BY PREDICTION_TIME DESC
+LIMIT 10;
+
+
+-- 3. Confirm the Stream has been consumed
+SELECT
+    SYSTEM$STREAM_HAS_DATA(
+        'ENERGY_ML.ML_PIPE.ENERGY_LANDING_STREAM'
+    ) AS STREAM_HAS_UNPROCESSED_DATA;
+
+
+ -- ============================================================
+-- STEP 39: CREATE MONITORING VIEW
+-- ============================================================
+
+CREATE OR REPLACE VIEW ENERGY_ML.ML_PIPE.ENERGY_PIPELINE_MONITOR AS
+SELECT
+    MODEL_NAME,
+    MODEL_VERSION,
+    COUNT(*) AS PREDICTION_COUNT,
+    MIN(PREDICTED_CONSUMPTION) AS MIN_PREDICTION,
+    MAX(PREDICTED_CONSUMPTION) AS MAX_PREDICTION,
+    AVG(PREDICTED_CONSUMPTION) AS AVG_PREDICTION,
+    MIN(PREDICTION_TIME) AS FIRST_PREDICTION_TIME,
+    MAX(PREDICTION_TIME) AS LAST_PREDICTION_TIME
+FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD
+GROUP BY
+    MODEL_NAME,
+    MODEL_VERSION;
+
+
+-- ============================================================
+-- VERIFY THAT THE VIEW EXISTS
+-- ============================================================
+
+SHOW VIEWS
+LIKE 'ENERGY_PIPELINE_MONITOR'
+IN SCHEMA ENERGY_ML.ML_PIPE;
+
+
+-- ============================================================
+-- READ THE MONITORING VIEW
+-- ============================================================
+
+SELECT *
+FROM ENERGY_ML.ML_PIPE.ENERGY_PIPELINE_MONITOR;
+
+-- ============================================================
+-- STEP 40: STORE MODEL EVALUATION RESULTS
+-- ============================================================
+
+CREATE OR REPLACE TABLE ENERGY_ML.ML_PIPE.MODEL_EVALUATION AS
+SELECT
+    'ENERGY_CONSUMPTION_XGB' AS MODEL_NAME,
+    'V2' AS MODEL_VERSION,
+    'XGBoost Regressor' AS MODEL_TYPE,
+    6872 AS TRAINING_ROWS,
+    1718 AS VALIDATION_ROWS,
+    0.4358 AS MAE,
+    0.6644 AS RMSE,
+    -0.0308 AS R2,
+    'Chronological 80/20 split' AS VALIDATION_METHOD,
+    CURRENT_TIMESTAMP() AS EVALUATION_TIME;
+
+
+-- ============================================================
+-- VERIFY MODEL EVALUATION
+-- ============================================================
+
+SELECT *
+FROM ENERGY_ML.ML_PIPE.MODEL_EVALUATION;
+
+
+-- ============================================================
+-- STEP 41: FINAL PROJECT VERIFICATION
+-- ============================================================
+
+-- 1. Tables
+SHOW TABLES
+IN SCHEMA ENERGY_ML.ML_PIPE;
+
+
+-- 2. Views
+SHOW VIEWS
+IN SCHEMA ENERGY_ML.ML_PIPE;
+
+
+-- 3. Stored Procedures
+SHOW PROCEDURES
+IN SCHEMA ENERGY_ML.ML_PIPE;
+
+
+-- 4. Tasks
+SHOW TASKS
+IN SCHEMA ENERGY_ML.ML_PIPE;
+
+
+-- 5. Streams
+SHOW STREAMS
+IN SCHEMA ENERGY_ML.ML_PIPE;
+
+
+-- 6. Registered ML Models
+SHOW MODELS
+IN SCHEMA ENERGY_ML.ML_PIPE;
+
+
+SHOW VERSIONS IN MODEL
+    ENERGY_ML.ML_PIPE.ENERGY_CONSUMPTION_XGB;
+
+
+USE DATABASE ENERGY_ML;
+USE SCHEMA ML_PIPE;
+USE WAREHOUSE ENERGY_ML_WH;
+
+-- =========================================================
+-- FINAL DEPLOYMENT TEST
+-- =========================================================
+
+-- 1. Insert 5 new incoming records
+INSERT INTO ENERGY_ML.ML_PIPE.LANDING_ENERGY
+(
+    TIME,
+    TEMP,
+    DWPT,
+    RHUM,
+    PRCP,
+    SNOW,
+    WDIR,
+    WSPD,
+    WPGT,
+    PRES,
+    COCO,
+    EL_PRICE,
+    CONSUMPTION
+)
+SELECT
+    TIME,
+    TEMP,
+    DWPT,
+    RHUM,
+    PRCP,
+    SNOW,
+    WDIR,
+    WSPD,
+    WPGT,
+    PRES,
+    COCO,
+    EL_PRICE,
+    NULL AS CONSUMPTION
+FROM ENERGY_ML.ML_PIPE.RAW_ENERGY
+ORDER BY TIME DESC
+LIMIT 5;
+
+
+-- 2. Confirm that the Stream detected the new records
+SELECT
+    SYSTEM$STREAM_HAS_DATA(
+        'ENERGY_ML.ML_PIPE.ENERGY_LANDING_STREAM'
+    ) AS STREAM_HAS_NEW_DATA;
+
+
+-- 3. Run the deployed inference procedure
+CALL ENERGY_ML.ML_PIPE.RUN_ENERGY_INFERENCE();
+
+
+-- 4. Verify the latest predictions in the Gold table
+SELECT
+    TIME,
+    TEMP,
+    DWPT,
+    RHUM,
+    WDIR,
+    WSPD,
+    PRES,
+    COCO,
+    EL_PRICE,
+    PREDICTED_CONSUMPTION,
+    MODEL_NAME,
+    MODEL_VERSION,
+    PREDICTION_TIME
+FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD
+ORDER BY PREDICTION_TIME DESC
+LIMIT 5;
+
+
+-- 5. Confirm the Stream has been consumed
+SELECT
+    SYSTEM$STREAM_HAS_DATA(
+        'ENERGY_ML.ML_PIPE.ENERGY_LANDING_STREAM'
+    ) AS STREAM_HAS_UNPROCESSED_DATA;
+
+
+-- 6. Final deployment summary
+SELECT
+    MODEL_NAME,
+    MODEL_VERSION,
+    COUNT(*) AS TOTAL_PREDICTIONS,
+    MIN(PREDICTED_CONSUMPTION) AS MIN_PREDICTION,
+    MAX(PREDICTED_CONSUMPTION) AS MAX_PREDICTION,
+    AVG(PREDICTED_CONSUMPTION) AS AVG_PREDICTION,
+    MIN(PREDICTION_TIME) AS FIRST_PREDICTION_TIME,
+    MAX(PREDICTION_TIME) AS LAST_PREDICTION_TIME
+FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD
+GROUP BY
+    MODEL_NAME,
+    MODEL_VERSION;
+
+
+
+    -- ============================================================
+-- FINAL DEPLOYMENT TEST
+-- New incoming data → Stream → Inference → Gold
+-- ============================================================
+
+USE DATABASE ENERGY_ML;
+USE SCHEMA ML_PIPE;
+USE WAREHOUSE ENERGY_ML_WH;
+
+-- 1. Insert 5 NEW incoming records
+--    We take records that have not already been used
+--    in the previous deployment test.
+
+INSERT INTO ENERGY_ML.ML_PIPE.LANDING_ENERGY
+SELECT
+    TIME,
+    TEMP,
+    DWPT,
+    RHUM,
+    PRCP,
+    SNOW,
+    WDIR,
+    WSPD,
+    WPGT,
+    PRES,
+    COCO,
+    EL_PRICE,
+    NULL AS CONSUMPTION
+FROM ENERGY_ML.ML_PIPE.RAW_ENERGY
+WHERE TIME > (
+    SELECT COALESCE(MAX(TIME), '2000-01-01'::TIMESTAMP_TZ)
+    FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD
+)
+LIMIT 5;
+
+
+-- 2. Confirm that new data entered LANDING_ENERGY
+
+SELECT
+    COUNT(*) AS NEW_LANDING_ROWS
+FROM ENERGY_ML.ML_PIPE.LANDING_ENERGY
+WHERE TIME > (
+    SELECT COALESCE(MAX(TIME), '2000-01-01'::TIMESTAMP_TZ)
+    FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD
+);
+
+
+-- 3. Check whether the Stream detects the new records
+
+SELECT
+    SYSTEM$STREAM_HAS_DATA(
+        'ENERGY_ML.ML_PIPE.ENERGY_LANDING_STREAM'
+    ) AS STREAM_HAS_UNPROCESSED_DATA;
+
+
+-- 4. Run the deployed inference procedure immediately
+
+CALL ENERGY_ML.ML_PIPE.RUN_ENERGY_INFERENCE();
+
+
+-- 5. Check the latest predictions
+
+SELECT
+    TIME,
+    TEMP,
+    RHUM,
+    EL_PRICE,
+    PREDICTED_CONSUMPTION,
+    MODEL_NAME,
+    MODEL_VERSION,
+    PREDICTION_TIME
+FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD
+ORDER BY PREDICTION_TIME DESC
+LIMIT 10;
+
+
+-- 6. Final deployment statistics
+
+SELECT
+    MODEL_NAME,
+    MODEL_VERSION,
+    COUNT(*) AS TOTAL_PREDICTIONS,
+    MIN(PREDICTED_CONSUMPTION) AS MIN_PREDICTION,
+    MAX(PREDICTED_CONSUMPTION) AS MAX_PREDICTION,
+    AVG(PREDICTED_CONSUMPTION) AS AVG_PREDICTION,
+    MIN(PREDICTION_TIME) AS FIRST_PREDICTION_TIME,
+    MAX(PREDICTION_TIME) AS LAST_PREDICTION_TIME
+FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD
+GROUP BY
+    MODEL_NAME,
+    MODEL_VERSION
+ORDER BY
+    LAST_PREDICTION_TIME DESC;
+
+
+
+    USE DATABASE ENERGY_ML;
+USE SCHEMA ML_PIPE;
+USE WAREHOUSE ENERGY_ML_WH;
+
+-- ============================================================
+-- FINAL DEPLOYMENT TEST
+-- ============================================================
+
+-- 1. Add 5 records that are NOT already in ENERGY_GOLD
+INSERT INTO ENERGY_ML.ML_PIPE.LANDING_ENERGY
+(
+    TIME,
+    TEMP,
+    DWPT,
+    RHUM,
+    PRCP,
+    SNOW,
+    WDIR,
+    WSPD,
+    WPGT,
+    PRES,
+    COCO,
+    EL_PRICE,
+    CONSUMPTION
+)
+SELECT
+    R.TIME,
+    R.TEMP,
+    R.DWPT,
+    R.RHUM,
+    R.PRCP,
+    R.SNOW,
+    R.WDIR,
+    R.WSPD,
+    R.WPGT,
+    R.PRES,
+    R.COCO,
+    R.EL_PRICE,
+    NULL
+FROM ENERGY_ML.ML_PIPE.RAW_ENERGY R
+LEFT JOIN ENERGY_ML.ML_PIPE.ENERGY_GOLD G
+    ON R.TIME = G.TIME
+WHERE G.TIME IS NULL
+LIMIT 5;
+
+
+-- 2. Check the stream
+SELECT
+    SYSTEM$STREAM_HAS_DATA(
+        'ENERGY_ML.ML_PIPE.ENERGY_LANDING_STREAM'
+    ) AS STREAM_HAS_UNPROCESSED_DATA;
+
+
+-- 3. Run inference
+CALL ENERGY_ML.ML_PIPE.RUN_ENERGY_INFERENCE();
+
+
+-- 4. Show the latest predictions
+SELECT
+    TIME,
+    TEMP,
+    RHUM,
+    EL_PRICE,
+    PREDICTED_CONSUMPTION,
+    MODEL_NAME,
+    MODEL_VERSION,
+    PREDICTION_TIME
+FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD
+ORDER BY PREDICTION_TIME DESC
+LIMIT 10;
+
+
+-- 5. Final deployment count
+SELECT
+    MODEL_NAME,
+    MODEL_VERSION,
+    COUNT(*) AS TOTAL_PREDICTIONS,
+    MIN(PREDICTED_CONSUMPTION) AS MIN_PREDICTION,
+    MAX(PREDICTED_CONSUMPTION) AS MAX_PREDICTION,
+    AVG(PREDICTED_CONSUMPTION) AS AVG_PREDICTION
+FROM ENERGY_ML.ML_PIPE.ENERGY_GOLD
+GROUP BY
+    MODEL_NAME,
+    MODEL_VERSION;
